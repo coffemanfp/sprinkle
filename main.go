@@ -9,6 +9,8 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -24,37 +26,27 @@ type Transforms struct {
 	Words Words `json:"words"`
 }
 
+// Words model for the words field
 type Words struct {
 	Before []string `json:"before"`
 	After  []string `json:"after"`
 }
 
 func main() {
-	wordsFileBytes, err := ioutil.ReadFile(wordsFilepath)
+
+	wordsFileBytes, err := ReadWordsFile(wordsFilepath)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	var transforms Transforms
-
-	err = json.Unmarshal(wordsFileBytes, &transforms)
+	allTransforms, err := populateWords(wordsFileBytes)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	var allTransforms []string
-
-	for _, word := range transforms.Words.Before {
-		word = word + otherWord
-		allTransforms = append(allTransforms, word)
+	if len(allTransforms) == 0 {
+		return
 	}
-
-	for _, word := range transforms.Words.After {
-		word = otherWord + word
-		allTransforms = append(allTransforms, word)
-	}
-
-	log.Println(allTransforms)
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -75,7 +67,80 @@ func init() {
 }
 
 func initFlags() {
-	flag.StringVar(&wordsFilepath, "wordsFile", "words.json", "A file with words to transform")
+	var wordsFilepathDefault string = "/home/%s/.sprinkle/data/words.json"
+
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	wordsFilepathDefault = fmt.Sprintf(wordsFilepathDefault, currentUser.Username)
+
+	flag.StringVar(&wordsFilepath, "wordsFile", wordsFilepathDefault, "A file with words to transform")
 
 	flag.Parse()
+}
+
+func populateWords(wordsFileBytes []byte) (allTransforms []string, err error) {
+	var transforms Transforms
+
+	if len(wordsFileBytes) == 0 {
+		return
+	}
+
+	err = json.Unmarshal(wordsFileBytes, &transforms)
+	if err != nil {
+		return
+	}
+
+	for _, word := range transforms.Words.Before {
+		word = word + otherWord
+		allTransforms = append(allTransforms, word)
+	}
+
+	for _, word := range transforms.Words.After {
+		word = otherWord + word
+		allTransforms = append(allTransforms, word)
+	}
+	return
+}
+
+// ReadWordsFile Reads the complete words file.
+func ReadWordsFile(path string) (fileBytes []byte, err error) {
+	exists, err := ExistsFile(path)
+	if err != nil {
+		return
+	}
+
+	if !exists {
+		err = os.MkdirAll(filepath.Dir(path), 0777)
+		if err != nil {
+			return
+		}
+
+		_, err = os.Create(path)
+		return
+	}
+
+	fileBytes, err = ioutil.ReadFile(path)
+	return
+}
+
+// ExistsFile - Checks if exists a file.
+func ExistsFile(path string) (exists bool, err error) {
+	if path == "" {
+		return
+	}
+
+	exists = true
+
+	if _, err = os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+			exists = false
+			return
+		}
+	}
+
+	return
 }
