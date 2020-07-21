@@ -14,11 +14,6 @@ const otherWord = "*"
 
 // transforms are simple words posibilities
 var transforms = []string{
-	otherWord,
-	otherWord,
-	otherWord,
-	otherWord,
-
 	otherWord + "app",
 	otherWord + "site",
 	otherWord + "time",
